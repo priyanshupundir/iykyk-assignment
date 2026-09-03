@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Face Collage</string>
+    <string name="select_video">Select Video</string>
+    <string name="process_video">Process Video</string>
+    <string name="processing">Processing…</string>
+    <string name="save_collage">Save to Gallery</string>
+    <string name="share_collage">Share</string>
+    <string name="appearances">Appearances</string>
+    <string name="people_detected">People Detected</string>
+</resources>
