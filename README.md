@@ -54,57 +54,70 @@ Shot Selection → Collage Generation → Save/Share
 
 ## 🚀 Build and Setup Instructions
 
-### 1. Clone the Repository
+### Prerequisites
+- **Android Studio** (recommended) or command line with Java 17
+- **Python 3.x** (for model download script)
+- **Android device or emulator** (API 26+)
 
-```bash
-git clone <repository-url>
-cd ifykyk_project
-```
+### Option 1: Android Studio (Recommended - Easiest)
 
-### 2. Download Face Recognition Model
+1. **Install Android Studio**
+   - Download from: https://developer.android.com/studio
+   - Install with default settings (includes compatible JDK 17)
 
-The app requires a TensorFlow Lite model for face embeddings. Download MobileFaceNet:
+2. **Clone and Open Project**
+   ```bash
+   git clone https://github.com/priyanshupundir/iykyk-assignment.git
+   cd iykyk-assignment
+   ```
+   - Open Android Studio
+   - Select "Open an Existing Project"
+   - Navigate to the project directory
 
-**Option 1: Manual Download**
-1. Visit: https://github.com/siriusrg/SmartFace_recognition
-2. Download `mobilefacenet.tflite` from the assets folder
-3. Place it in: `app/src/main/assets/mobilefacenet.tflite`
+3. **Download Face Recognition Model**
+   ```bash
+   python download_model.py
+   ```
+   Or manually download `mobilefacenet.tflite` and place in `app/src/main/assets/`
 
-**Option 2: Automated Download**
-```bash
-python download_model.py
-```
+4. **Sync and Build**
+   - Wait for Gradle sync to complete (first run takes 5-10 minutes)
+   - Android Studio will download all dependencies automatically
+   - Click the "Run" button (▶️) or press `Shift + F10`
 
-### 3. Open in Android Studio
+### Option 2: Command Line Build
 
-1. Open Android Studio
-2. Select "Open an Existing Project"
-3. Navigate to the project directory and open it
+1. **Install Java 17**
+   - Download from: https://adoptium.net/temurin/releases/?version=17
+   - Set JAVA_HOME environment variable
+   - Update PATH to include `%JAVA_HOME%\bin`
 
-### 4. Sync Gradle
+2. **Clone and Setup**
+   ```bash
+   git clone https://github.com/priyanshupundir/iykyk-assignment.git
+   cd iykyk-assignment
+   python download_model.py
+   ```
 
-Android Studio will automatically sync Gradle. If not:
-- Go to File → Sync Project with Gradle Files
+3. **Build the Project**
+   ```bash
+   # Windows
+   .\gradlew.bat assembleDebug
+   
+   # Linux/Mac
+   ./gradlew assembleDebug
+   ```
 
-### 5. Build the Project
+4. **Install on Device**
+   ```bash
+   # Windows
+   .\gradlew.bat installDebug
+   
+   # Linux/Mac
+   ./gradlew installDebug
+   ```
 
-```bash
-# Debug build
-./gradlew assembleDebug
-
-# Release build
-./gradlew assembleRelease
-```
-
-### 6. Run on Device/Emulator
-
-```bash
-# Install debug APK
-./gradlew installDebug
-
-# Or run from Android Studio
-# Click the Run button (▶️) or press Shift + F10
-```
+**Note**: See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed troubleshooting and setup instructions.
 
 ## 🧠 Face Recognition Model
 
