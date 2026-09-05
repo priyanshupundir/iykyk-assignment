@@ -96,6 +96,12 @@ Thumbs.db
 *.tflite
 *.pb
 
+# IDE specific files
+.idea/
+*.iml
+.gradle/
+gradle-daemon-jvm.properties
+
 # Test results
 test-results/
 androidTest-results/
