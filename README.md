@@ -16,6 +16,23 @@ An Android application that processes videos on-device to detect subjects, clust
 
 ---
 
+## 🧠 Machine Learning & Identity Clustering
+
+### 1. Face Embedding Model: MobileFaceNet
+- **Architecture**: MobileFaceNet (TensorFlow Lite) pre-bundled in `app/src/main/assets/mobilefacenet.tflite`.
+- **Input**: 112×112×3 RGB face crop (with 20% contextual margin).
+- **Output**: 192-dimensional normalized feature embedding vector.
+- **Efficiency**: Optimized for mobile devices (~10-15ms inference time), lightweight (~2 MB), and executes entirely on-device with zero network latency or privacy concerns.
+
+### 2. Similarity Metric & Chosen Threshold
+- **Metric**: Cosine Similarity between normalized 192-dimensional vectors (`dotProduct`).
+- **Chosen Threshold**: **`0.5`**
+- **Rationale**: 
+  - Cosine similarity $> 0.5$ provides the optimal balance between high precision (avoiding merging distinct people) and recall (tracking the same individual across camera angles, facial expressions, and lighting shifts).
+  - Configurable directly in [`VideoProcessingService.kt`](file:///d:/ifykyk_project/app/src/main/java/com/ifykyk/facecollage/video/VideoProcessingService.kt).
+
+---
+
 ## 🏗️ Project Structure
 
 ```
