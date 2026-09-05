@@ -171,14 +171,14 @@ class CollageGenerator {
         
         // Draw background
         val labelX = x + (width - labelWidth) / 2
-        val labelRect = RectF(labelX, y.toFloat(), labelX + labelWidth, y + labelHeight)
+        val labelRect = RectF(labelX, y.toFloat(), labelX + labelWidth, (y + labelHeight))
         canvas.drawRoundRect(labelRect, 5f, 5f, backgroundPaint)
         
         // Draw title
         canvas.drawText(
             title,
             labelX + 10,
-            y + 20,
+            (y + 20).toFloat(),
             paint
         )
         
@@ -186,7 +186,7 @@ class CollageGenerator {
         canvas.drawText(
             subtitle,
             labelX + 10,
-            y + 40,
+            (y + 40).toFloat(),
             subtitlePaint
         )
     }
@@ -252,7 +252,7 @@ class CollageGenerator {
                 canvas.drawCircle(centerX, centerY, radius, paint)
                 
                 // Draw circular image
-                val scaledBitmap = scaleCenterCrop(representativeShot.bitmap, tileSize.toInt(), tileSize.toInt())
+                val scaledBitmap = scaleCenterCrop(representativeShot.bitmap, tileSize, tileSize)
                 val circularBitmap = createCircularBitmap(scaledBitmap)
                 canvas.drawBitmap(circularBitmap, x, y, paint)
                 

@@ -3,6 +3,7 @@ package com.ifykyk.facecollage.video
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import android.util.Log
 import com.ifykyk.facecollage.face.clustering.FaceClusteringService
 import com.ifykyk.facecollage.face.detection.FaceDetectionService
 import com.ifykyk.facecollage.face.embedding.FaceEmbeddingService
@@ -52,7 +53,8 @@ class VideoProcessingService(private val context: Context) {
             
             val detectedFaces = detectedFacesResult.getOrNull() ?: emptyList()
             if (detectedFaces.isEmpty()) {
-                return@withContext Result.failure(Exception("No faces detected in video"))
+                Log.e("VideoProcessing", "No faces detected in video: $videoUri")
+                return@withContext Result.failure(Exception("No faces detected in this video. Please ensure the video has clear faces and is in a supported format like MP4."))
             }
             
             // Step 2: Cluster faces by identity
@@ -90,7 +92,7 @@ class VideoProcessingService(private val context: Context) {
             }
             
             // Step 4: Generate collage
-            onProgress(0.95f, "Generating collage...")
+            onProgress(0.99f, "Generating collage...")
             val collageBitmap = collageGenerator.generateInstagramStyleCollage(
                 personClusters,
                 representativeShots

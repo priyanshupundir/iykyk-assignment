@@ -5,9 +5,7 @@ import android.graphics.Rect
 import com.google.mlkit.vision.face.Face
 import com.ifykyk.facecollage.face.detection.FaceDetectionService
 import com.ifykyk.facecollage.face.embedding.FaceEmbeddingService
-import org.opencv.android.Utils
-import org.opencv.core.*
-import org.opencv.imgproc.Imgproc
+import kotlin.math.abs
 
 class RepresentativeShotSelector {
     
@@ -93,52 +91,44 @@ class RepresentativeShotSelector {
     
     private fun calculateSharpnessScore(bitmap: Bitmap, faceRect: Rect): Float {
         try {
-            // Convert bitmap to OpenCV Mat
-            val mat = Mat()
-            Utils.bitmapToMat(bitmap, mat)
-            
-            // Convert to grayscale
-            val grayMat = Mat()
-            Imgproc.cvtColor(mat, grayMat, Imgproc.COLOR_RGB2GRAY)
-            
             // Crop to face region
-            val roi = Rect(
-                faceRect.left.coerceAtLeast(0),
-                faceRect.top.coerceAtLeast(0),
-                faceRect.width().coerceAtMost(mat.cols() - faceRect.left),
-                faceRect.height().coerceAtMost(mat.rows() - faceRect.top)
-            )
+            val left = faceRect.left.coerceAtLeast(0)
+            val top = faceRect.top.coerceAtLeast(0)
+            val width = faceRect.width().coerceAtMost(bitmap.width - left)
+            val height = faceRect.height().coerceAtMost(bitmap.height - top)
             
-            if (roi.width <= 0 || roi.height <= 0) {
-                mat.release()
-                grayMat.release()
+            if (width <= 0 || height <= 0) {
                 return 0.5f // Default score
             }
             
-            val faceMat = Mat(grayMat, roi)
+            val faceBitmap = Bitmap.createBitmap(bitmap, left, top, width, height)
             
-            // Calculate Laplacian variance (measure of blur)
-            val laplacian = Mat()
-            Imgproc.Laplacian(faceMat, laplacian, CvType.CV_64F)
+            // Calculate edge detection using simple gradient
+            var edgeCount = 0
+            val totalPixels = width * height
             
-            val mean = MatOfDouble()
-            val stddev = MatOfDouble()
-            Core.meanStdDev(laplacian, mean, stddev)
+            for (x in 1 until width - 1) {
+                for (y in 1 until height - 1) {
+                    val currentPixel = faceBitmap.getPixel(x, y)
+                    val rightPixel = faceBitmap.getPixel(x + 1, y)
+                    val bottomPixel = faceBitmap.getPixel(x, y + 1)
+                    
+                    // Calculate simple gradient
+                    val redDiff = Math.abs(android.graphics.Color.red(currentPixel) - android.graphics.Color.red(rightPixel))
+                    val greenDiff = Math.abs(android.graphics.Color.green(currentPixel) - android.graphics.Color.green(rightPixel))
+                    val blueDiff = Math.abs(android.graphics.Color.blue(currentPixel) - android.graphics.Color.blue(rightPixel))
+                    
+                    if (redDiff + greenDiff + blueDiff > 30) {
+                        edgeCount++
+                    }
+                }
+            }
             
-            val variance = stddev.get(0, 0)[0]
+            faceBitmap.recycle()
             
-            // Clean up
-            mat.release()
-            grayMat.release()
-            faceMat.release()
-            laplacian.release()
-            mean.release()
-            stddev.release()
-            
-            // Normalize variance to 0-1 range (typical range is 0-1000)
-            val sharpnessScore = (variance / 500f).coerceAtMost(1f)
-            
-            return sharpnessScore
+            // Normalize edge count to 0-1 range
+            val edgeRatio = edgeCount.toFloat() / totalPixels
+            return (edgeRatio * 10f).coerceAtMost(1f)
         } catch (e: Exception) {
             return 0.5f // Default score on error
         }

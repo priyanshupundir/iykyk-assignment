@@ -32,7 +32,7 @@ class FaceClusteringService(
         onProgress: (Float, String) -> Unit
     ): Result<List<PersonCluster>> {
         try {
-            onProgress(0.5f, "Generating face embeddings...")
+            onProgress(0.85f, "Generating face embeddings...")
             
             // Generate embeddings for all detected faces
             val embeddings = mutableListOf<FaceEmbeddingService.FaceEmbedding>()
@@ -48,16 +48,16 @@ class FaceClusteringService(
                     embeddings.add(embedding)
                 }
                 
-                val progress = 0.5f + (index.toFloat() / detectedFaces.size) * 0.2f
+                val progress = 0.85f + (index.toFloat() / detectedFaces.size) * 0.1f
                 onProgress(progress, "Generating embedding ${index + 1}/${detectedFaces.size}")
             }
             
-            onProgress(0.7f, "Clustering faces by identity...")
+            onProgress(0.95f, "Clustering faces by identity...")
             
             // Perform clustering
             val clusters = performHierarchicalClustering(embeddings, similarityThreshold)
             
-            onProgress(0.9f, "Calculating appearance counts...")
+            onProgress(0.97f, "Calculating appearance counts...")
             
             // Calculate appearance counts for each cluster
             val personClusters = clusters.mapIndexed { index, clusterEmbeddings ->
@@ -69,7 +69,7 @@ class FaceClusteringService(
                 )
             }
             
-            onProgress(1.0f, "Clustering complete. Found ${personClusters.size} unique people.")
+            onProgress(1.0f, "Processing complete! Found ${personClusters.size} unique people.")
             
             return Result.success(personClusters)
         } catch (e: Exception) {
@@ -109,8 +109,7 @@ class FaceClusteringService(
             if (maxSimilarity >= similarityThreshold) {
                 val (i, j) = bestPair
                 val mergedCluster = clusters[i] + clusters[j]
-                clusters = clusters.filterIndexed { index, _ -> index != i && index != j }
-                clusters.add(mergedCluster)
+                clusters = clusters.filterIndexed { index, _ -> index != i && index != j } + listOf(mergedCluster)
                 merged = true
             }
         }

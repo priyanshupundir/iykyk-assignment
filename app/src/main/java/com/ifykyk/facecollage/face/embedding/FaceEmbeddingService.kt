@@ -3,6 +3,7 @@ package com.ifykyk.facecollage.face.embedding
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Rect
+import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.support.common.FileUtil
 import org.tensorflow.lite.support.image.ImageProcessor
@@ -70,16 +71,20 @@ class FaceEmbeddingService(private val context: Context) {
         
         try {
             // Crop face from bitmap
+            val cropX = faceRect.left.coerceIn(0, bitmap.width - 1)
+            val cropY = faceRect.top.coerceIn(0, bitmap.height - 1)
+            val cropWidth = faceRect.width().coerceIn(1, bitmap.width - cropX)
+            val cropHeight = faceRect.height().coerceIn(1, bitmap.height - cropY)
             val faceBitmap = Bitmap.createBitmap(
                 bitmap,
-                faceRect.left.coerceAtLeast(0),
-                faceRect.top.coerceAtLeast(0),
-                faceRect.width().coerceAtMost(bitmap.width - faceRect.left),
-                faceRect.height().coerceAtMost(bitmap.height - faceRect.top)
+                cropX,
+                cropY,
+                cropWidth,
+                cropHeight
             )
             
             // Process image for model input
-            val tensorImage = TensorImage(android.graphics.Bitmap.Config.ARGB_8888)
+            val tensorImage = TensorImage(DataType.FLOAT32)
             tensorImage.load(faceBitmap)
             val processedImage = imageProcessor.process(tensorImage)
             
@@ -103,7 +108,7 @@ class FaceEmbeddingService(private val context: Context) {
             
             return FaceEmbedding(
                 vector = embedding,
-                bitmap = bitmap.copy(bitmap.config, false),
+                bitmap = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false),
                 timestamp = timestamp,
                 frameIndex = frameIndex
             )
