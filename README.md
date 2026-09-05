@@ -1,381 +1,101 @@
-# Face Collage - Android Internship Assignment
+# IYKYK Collage 🎬✨
 
-Video-based unique-person collage application that processes portrait videos on-device, detects faces, identifies the same person across separate appearances, and creates shareable collages.
-
-## 🎯 Project Overview
-
-This Android application processes portrait videos to:
-- Detect faces in video frames using ML Kit
-- Generate face embeddings using on-device TensorFlow Lite models
-- Cluster faces by identity to group appearances of the same person
-- Count appearances for each detected person
-- Select representative shots based on face quality metrics
-- Generate Instagram-style collages with detected individuals
-- Save collages to gallery and share via standard Android share sheet
-
-## 🏗️ Architecture
-
-The app follows a clean architecture with separate services for each processing stage:
-
-### Core Components
-
-1. **FaceDetectionService** - ML Kit-based face detection
-2. **FaceEmbeddingService** - TensorFlow Lite face embedding generation
-3. **FaceClusteringService** - Hierarchical clustering for identity grouping
-4. **RepresentativeShotSelector** - Quality-based shot selection
-5. **CollageGenerator** - Instagram-style collage creation
-6. **VideoProcessingService** - Orchestrates the entire pipeline
-
-### Processing Pipeline
-
-```
-Video Input → Face Detection → Embedding Generation → Clustering → 
-Shot Selection → Collage Generation → Save/Share
-```
-
-## 🛠️ Technology Stack
-
-- **Language**: Kotlin
-- **UI Framework**: Jetpack Compose
-- **Min SDK**: 26 (Android 8.0)
-- **Target SDK**: 34 (Android 14)
-- **Face Detection**: Google ML Kit Face Detection
-- **Face Recognition**: TensorFlow Lite (MobileFaceNet)
-- **Image Processing**: OpenCV
-- **Video Processing**: MediaMetadataRetriever
-- **Coroutines**: Kotlin Coroutines for background processing
-
-## 📋 Requirements
-
-- Android Studio Hedgehog (2023.1.1) or later
-- Android SDK 26+
-- Kotlin 1.9.20+
-- Gradle 8.2+
-
-## 🚀 Build and Setup Instructions
-
-### Prerequisites
-- **Android Studio** (recommended) or command line with Java 17
-- **Python 3.x** (for model download script)
-- **Android device or emulator** (API 26+)
-
-### Option 1: Android Studio (Recommended - Easiest)
-
-1. **Install Android Studio**
-   - Download from: https://developer.android.com/studio
-   - Install with default settings (includes compatible JDK 17)
-
-2. **Clone and Open Project**
-   ```bash
-   git clone https://github.com/priyanshupundir/iykyk-assignment.git
-   cd iykyk-assignment
-   ```
-   - Open Android Studio
-   - Select "Open an Existing Project"
-   - Navigate to the project directory
-
-3. **Download Face Recognition Model**
-   ```bash
-   python download_model.py
-   ```
-   Or manually download `mobilefacenet.tflite` and place in `app/src/main/assets/`
-
-4. **Sync and Build**
-   - Wait for Gradle sync to complete (first run takes 5-10 minutes)
-   - Android Studio will download all dependencies automatically
-   - Click the "Run" button (▶️) or press `Shift + F10`
-
-### Option 2: Command Line Build
-
-1. **Install Java 17**
-   - Download from: https://adoptium.net/temurin/releases/?version=17
-   - Set JAVA_HOME environment variable
-   - Update PATH to include `%JAVA_HOME%\bin`
-
-2. **Clone and Setup**
-   ```bash
-   git clone https://github.com/priyanshupundir/iykyk-assignment.git
-   cd iykyk-assignment
-   python download_model.py
-   ```
-
-3. **Build the Project**
-   ```bash
-   # Windows
-   .\gradlew.bat assembleDebug
-   
-   # Linux/Mac
-   ./gradlew assembleDebug
-   ```
-
-4. **Install on Device**
-   ```bash
-   # Windows
-   .\gradlew.bat installDebug
-   
-   # Linux/Mac
-   ./gradlew installDebug
-   ```
-
-**Note**: See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed troubleshooting and setup instructions.
-
-## 🧠 Face Recognition Model
-
-### Model Used: MobileFaceNet
-
-- **Model Name**: MobileFaceNet
-- **Framework**: TensorFlow Lite
-- **Input**: 112×112×3 RGB image
-- **Output**: 192-dimensional embedding vector
-- **Size**: ~2-3 MB
-- **Source**: https://github.com/siriusrg/SmartFace_recognition
-
-### Why MobileFaceNet?
-
-- Lightweight and optimized for mobile devices
-- Fast inference time suitable for real-time video processing
-- Good accuracy for face recognition tasks
-- Small footprint suitable for on-device processing
-
-### Similarity Threshold
-
-**Chosen Threshold: 0.5**
-
-- **Range**: 0.0 to 1.0 (cosine similarity)
-- **Rationale**: 
-  - Values below 0.5 typically indicate different individuals
-  - Values above 0.5 indicate the same person with high confidence
-  - This threshold balances precision and recall for portrait videos
-- **Adjustability**: The threshold can be modified in `VideoProcessingService.kt`
-
-## 🎨 Features
-
-### Face Detection
-- Real-time face detection using ML Kit
-- Detection of multiple faces in single frames
-- Confidence-based filtering for quality results
-
-### Face Recognition
-- On-device embedding generation using TensorFlow Lite
-- 192-dimensional feature vectors for each face
-- Cosine similarity for identity matching
-
-### Clustering
-- Hierarchical clustering algorithm
-- Groups appearances of the same person
-- Configurable similarity threshold
-
-### Appearance Counting
-- Continuous segment detection
-- Gap-based segment separation (1-second threshold)
-- Accurate appearance counting per person
-
-### Representative Shot Selection
-- **Frontality Score**: Based on head pose angles (pitch, yaw, roll)
-- **Sharpness Score**: Laplacian variance for blur detection
-- **Eyes Open Score**: ML Kit eye open probability
-- **Expression Score**: Smiling probability with preference for pleasant expressions
-- **Face Visibility Score**: Clipping detection and size optimization
-
-### Collage Generation
-- Instagram Story-style layout
-- Circular frame design
-- Gradient backgrounds
-- Person labels with appearance counts
-- High-resolution output (1080×1920)
-
-### User Interface
-- Material Design 3 with Jetpack Compose
-- Real-time processing progress indicators
-- Video picker integration
-- Collage preview
-- Save to gallery functionality
-- Share via Android share sheet
-
-## 📱 Usage
-
-1. **Launch the App**
-   - Grant storage permissions when prompted
-
-2. **Select Video**
-   - Tap "Select Video" button
-   - Choose a portrait video from your device
-
-3. **Process Video**
-   - Tap "Process Video" button
-   - Monitor progress indicators
-   - Wait for processing to complete
-
-4. **View Results**
-   - See detected people count
-   - View individual person cards with appearance counts
-   - Preview generated collage
-
-5. **Save/Share**
-   - Tap "Save" to save collage to device gallery
-   - Tap "Share" to share via Android share sheet
-
-## 🧪 Testing
-
-### Test Videos
-
-The app has been tested with the provided sample videos:
-- Sample 1: 5 people, 4 appearances each (20 total)
-- Sample 2: [Count to be determined]
-- Sample 3: [Count to be determined]
-
-### Expected Behavior
-
-1. **Sample 1**: Should detect 5 distinct people, each appearing 4 times
-2. **Sample 2 & 3**: Will detect and count people according to video content
-
-### Performance
-
-- Processing time: ~30-60 seconds per 30-second video
-- Memory usage: Optimized for devices with 3GB+ RAM
-- Battery impact: Moderate (intensive processing)
-
-## 🎯 Project Structure
-
-```
-app/
-├── src/main/
-│   ├── java/com/ifykyk/facecollage/
-│   │   ├── MainActivity.kt
-│   │   ├── face/
-│   │   │   ├── detection/FaceDetectionService.kt
-│   │   │   ├── embedding/FaceEmbeddingService.kt
-│   │   │   ├── clustering/FaceClusteringService.kt
-│   │   │   └── selection/RepresentativeShotSelector.kt
-│   │   ├── collage/CollageGenerator.kt
-│   │   ├── video/VideoProcessingService.kt
-│   │   └── ui/
-│   │       ├── screen/MainScreen.kt
-│   │       └── theme/
-│   ├── assets/
-│   │   └── mobilefacenet.tflite (to be added)
-│   └── res/
-├── build.gradle.kts
-└── proguard-rules.pro
-```
-
-## 🔧 Configuration
-
-### Adjust Similarity Threshold
-
-Edit `VideoProcessingService.kt`:
-
-```kotlin
-val result = processingService.processVideo(
-    videoUri = uri,
-    similarityThreshold = 0.5f // Adjust this value
-) { progress, status ->
-    processingProgress = progress
-    processingStatus = status
-}
-```
-
-### Modify Collage Style
-
-Edit `CollageGenerator.kt` to customize:
-- Background colors
-- Layout patterns
-- Label styles
-- Image dimensions
-
-## 🐛 Troubleshooting
-
-### Model Not Found Error
-
-**Problem**: "Failed to load face embedding model"
-
-**Solution**: 
-1. Ensure `mobilefacenet.tflite` is in `app/src/main/assets/`
-2. Rebuild the project
-3. Clear app data and restart
-
-### Out of Memory Error
-
-**Problem**: App crashes during processing
-
-**Solution**:
-1. Reduce video resolution
-2. Close other apps to free memory
-3. Process shorter video segments
-
-### No Faces Detected
-
-**Problem**: Processing completes but shows 0 people
-
-**Solution**:
-1. Ensure video has clear, visible faces
-2. Check lighting conditions
-3. Verify video is in portrait orientation
-
-## 📊 Algorithm Details
-
-### Appearance Counting Logic
-
-An appearance is defined as one continuous visible segment:
-- **Start**: When a person's face becomes clearly visible
-- **End**: When the face is no longer clearly visible
-- **Gap Threshold**: 1-second gap separates appearances
-- **Multiple Faces**: Each clearly visible person in a segment counts as one appearance
-
-### Quality Scoring
-
-Representative shots are selected using weighted scoring:
-- Frontality: 30% weight
-- Sharpness: 25% weight
-- Eyes Open: 20% weight
-- Expression: 15% weight
-- Face Visibility: 10% weight
-
-## 🚦 Performance Considerations
-
-- **Processing happens on background threads** to keep UI responsive
-- **Memory management**: Bitmaps are recycled after use
-- **Progressive processing**: Real-time progress updates
-- **Optimized algorithms**: Efficient clustering and embedding generation
-
-## 📝 Submission Requirements
-
-This project meets all submission requirements:
-
-✅ **Identity grouping and appearance-count accuracy**: 50%
-- Hierarchical clustering with configurable threshold
-- Accurate appearance counting with gap-based segmentation
-
-✅ **Code quality and architecture**: 30%
-- Clean architecture with separated concerns
-- Kotlin best practices
-- Comprehensive error handling
-- Resource management
-
-✅ **App usability, representative-shot quality, and collage presentation**: 20%
-- Intuitive Material Design 3 UI
-- Multi-criteria shot selection
-- Instagram-style collage generation
-- Save and share functionality
-
-## 🎓 Learning Outcomes
-
-This project demonstrates:
-- On-device ML integration (ML Kit + TensorFlow Lite)
-- Real-time video processing
-- Computer vision techniques
-- Background processing with coroutines
-- Material Design 3 with Jetpack Compose
-- Android file system and sharing APIs
-
-## 📄 License
-
-This project is created for the ifykyk Android Internship Assignment.
-
-## 👤 Author
-
-Created for ifykyk Android Internship Assignment 2026
+An Android application that processes videos on-device to detect subjects, cluster identities, and generate aesthetic, shareable collages.
 
 ---
 
-**Deadline**: Sunday, 6 September 2026, 11:59 PM IST
+## 🌟 Features
+
+- **Smart Face Detection & Quality Scoring**: Utilizes Google ML Kit to detect faces across video frames, scoring for frontality, sharpness, open eyes, and pleasant expressions.
+- **Identity Clustering & Recognition**: Uses on-device MobileFaceNet (TensorFlow Lite) embeddings to group appearances of the same person across the video.
+- **⚡ Direct Video Highlights Collage (Bypass Mode)**: Instantly extracts evenly distributed highlights across any video to generate a collage in under 1 second.
+- **🛡️ Automatic Fallback**: Automatically creates a highlight collage if difficult lighting or zero faces are detected.
+- **Story-Ready Collages**: High-resolution collage generation formatted for Instagram Stories / social sharing with gradient backdrops and rounded card tiles.
+- **Save & Share**: Direct export to device Gallery (`Pictures/IYKYK`) using modern Android Scoped Storage (`MediaStore`) and native Android Share Sheet.
+- **Modern IYKYK Neon-Pop UI**: Clean Jetpack Compose interface with hot pink and electric violet branding.
+
+---
+
+## 🏗️ Project Structure
+
+```
+d:/ifykyk_project/
+├── app/
+│   ├── src/main/
+│   │   ├── java/com/ifykyk/facecollage/
+│   │   │   ├── MainActivity.kt                 # Entry point Activity
+│   │   │   ├── collage/
+│   │   │   │   └── CollageGenerator.kt         # Story-style & grid collage builder
+│   │   │   ├── face/
+│   │   │   │   ├── clustering/
+│   │   │   │   │   └── FaceClusteringService.kt # Hierarchical face clustering
+│   │   │   │   ├── detection/
+│   │   │   │   │   └── FaceDetectionService.kt  # ML Kit detection & frame extraction
+│   │   │   │   ├── embedding/
+│   │   │   │   │   └── FaceEmbeddingService.kt  # TFLite MobileFaceNet embeddings
+│   │   │   │   └── selection/
+│   │   │   │       └── RepresentativeShotSelector.kt # Multi-metric quality scoring
+│   │   │   ├── ui/
+│   │   │   │   ├── screen/
+│   │   │   │   │   └── MainScreen.kt           # Jetpack Compose UI
+│   │   │   │   └── theme/
+│   │   │   │       ├── Color.kt                # IYKYK neon palette
+│   │   │   │       ├── Theme.kt                # Material3 Theme configuration
+│   │   │   │       └── Type.kt                 # Typography
+│   │   │   └── video/
+│   │   │       └── VideoProcessingService.kt   # End-to-end pipeline orchestrator
+│   │   ├── assets/
+│   │   │   └── mobilefacenet.tflite            # Pre-bundled TFLite model
+│   │   ├── res/                                # App icons & resources
+│   │   └── AndroidManifest.xml
+│   └── build.gradle.kts
+├── build.gradle.kts
+└── settings.gradle.kts
+```
+
+---
+
+## 🛠️ Requirements & Tech Stack
+
+| Component | Specification |
+| :--- | :--- |
+| **Language** | Kotlin 2.1.20 |
+| **UI Framework** | Jetpack Compose with Material 3 |
+| **Build Tooling** | Gradle 9.4+ & AGP 9.2.0 |
+| **Java / JDK** | JDK 17 to JDK 26 |
+| **Min SDK** | API 26 (Android 8.0) |
+| **Target / Compile SDK** | API 35 (Android 15) |
+| **Machine Learning** | Google ML Kit Face Detection & TensorFlow Lite |
+
+---
+
+## 🚀 How to Build and Run
+
+### In Android Studio
+
+1. Open **Android Studio** and select **File → Open...**.
+2. Select the `ifykyk_project` directory.
+3. Wait for the initial **Gradle Sync** to finish.
+4. Connect an Android device with USB Debugging enabled or start an Android Emulator.
+5. Click **Run (▶)** or press <kbd>Shift</kbd> + <kbd>F10</kbd>.
+
+### From Command Line
+
+```bash
+# Clone the repository
+git clone https://github.com/priyanshupundir/iykyk-assignment.git
+cd iykyk-assignment
+
+# Build Debug APK
+# Windows
+.\gradlew.bat assembleDebug
+
+# macOS / Linux
+./gradlew assembleDebug
+
+# Install directly on connected device/emulator
+.\gradlew.bat installDebug
+```
+
+Generated APK will be located at:
+`app/build/outputs/apk/debug/app-debug.apk`
