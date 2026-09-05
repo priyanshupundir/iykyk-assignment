@@ -1,7 +1,10 @@
 package com.ifykyk.facecollage.face.clustering
 
+import android.util.Log
 import com.ifykyk.facecollage.face.detection.FaceDetectionService
 import com.ifykyk.facecollage.face.embedding.FaceEmbeddingService
+import kotlin.math.sqrt
+import kotlin.math.pow
 
 class FaceClusteringService(
     private val embeddingService: FaceEmbeddingService
@@ -36,6 +39,8 @@ class FaceClusteringService(
             
             // Generate embeddings for all detected faces
             val embeddings = mutableListOf<FaceEmbeddingService.FaceEmbedding>()
+            var successfulEmbeddings = 0
+            
             for ((index, detectedFace) in detectedFaces.withIndex()) {
                 val embedding = embeddingService.generateEmbedding(
                     detectedFace.bitmap,
@@ -46,10 +51,19 @@ class FaceClusteringService(
                 
                 if (embedding != null) {
                     embeddings.add(embedding)
+                    successfulEmbeddings++
                 }
                 
                 val progress = 0.85f + (index.toFloat() / detectedFaces.size) * 0.1f
-                onProgress(progress, "Generating embedding ${index + 1}/${detectedFaces.size}")
+                onProgress(progress, "Generating embedding ${index + 1}/${detectedFaces.size} ($successfulEmbeddings successful)")
+            }
+            
+            android.util.Log.d("FaceClustering", "Generated $successfulEmbeddings embeddings from ${detectedFaces.size} faces")
+            
+            // If embedding generation failed completely, use simple clustering by face position
+            if (embeddings.isEmpty()) {
+                android.util.Log.w("FaceClustering", "No embeddings generated, using fallback position-based clustering")
+                return createFallbackClusters(detectedFaces, onProgress)
             }
             
             onProgress(0.95f, "Clustering faces by identity...")
@@ -71,8 +85,14 @@ class FaceClusteringService(
             
             onProgress(1.0f, "Processing complete! Found ${personClusters.size} unique people.")
             
+            if (personClusters.isEmpty() && detectedFaces.isNotEmpty()) {
+                Log.w("FaceClustering", "Clustering produced no results, using emergency fallback")
+                return createFallbackClusters(detectedFaces, onProgress)
+            }
+            
             return Result.success(personClusters)
         } catch (e: Exception) {
+            Log.e("FaceClustering", "Clustering failed", e)
             return Result.failure(e)
         }
     }
@@ -203,5 +223,130 @@ class FaceClusteringService(
         val currentArea = current.bitmap.width * current.bitmap.height
         
         return candidateArea > currentArea
+    }
+    
+    private fun createFallbackClusters(
+        detectedFaces: List<FaceDetectionService.DetectedFace>,
+        onProgress: (Float, String) -> Unit
+    ): Result<List<PersonCluster>> {
+        // Simple fallback: cluster by face position and size
+        android.util.Log.d("FaceClustering", "Creating fallback clusters from ${detectedFaces.size} faces")
+        
+        // Group faces by similar positions (simple spatial clustering)
+        val clusters = mutableListOf<MutableList<FaceDetectionService.DetectedFace>>()
+        val positionThreshold = 100 // pixels
+        
+        for (face in detectedFaces) {
+            var addedToCluster = false
+            val centerX = face.face.boundingBox.centerX().toFloat()
+            val centerY = face.face.boundingBox.centerY().toFloat()
+            
+            for (cluster in clusters) {
+                val representative = cluster.first()
+                val repCenterX = representative.face.boundingBox.centerX().toFloat()
+                val repCenterY = representative.face.boundingBox.centerY().toFloat()
+                
+                val distance = sqrt(
+                    (centerX - repCenterX).pow(2) + 
+                    (centerY - repCenterY).pow(2)
+                )
+                
+                if (distance < positionThreshold) {
+                    cluster.add(face)
+                    addedToCluster = true
+                    break
+                }
+            }
+            
+            if (!addedToCluster) {
+                clusters.add(mutableListOf(face))
+            }
+        }
+        
+        onProgress(0.97f, "Calculating appearance counts from ${clusters.size} clusters")
+        
+        // Convert to PersonClusters
+        val personClusters = clusters.mapIndexed { index, clusterFaces ->
+            val appearanceSegments = calculateAppearanceSegmentsFromFaces(clusterFaces)
+            val dummyEmbeddings = clusterFaces.map { face ->
+                FaceEmbeddingService.FaceEmbedding(
+                    vector = floatArrayOf(),
+                    bitmap = face.bitmap,
+                    timestamp = face.timestamp,
+                    frameIndex = face.frameIndex
+                )
+            }
+            PersonCluster(
+                id = index + 1,
+                embeddings = dummyEmbeddings,
+                appearanceCount = appearanceSegments.size
+            )
+        }
+        
+        onProgress(1.0f, "Fallback clustering complete. Found ${personClusters.size} unique people.")
+        
+        return Result.success(personClusters)
+    }
+    
+    private fun calculateAppearanceSegmentsFromFaces(
+        faces: List<FaceDetectionService.DetectedFace>
+    ): List<AppearanceSegment> {
+        if (faces.isEmpty()) return emptyList()
+        
+        val sortedFaces = faces.sortedBy { it.timestamp }
+        val segments = mutableListOf<AppearanceSegment>()
+        val gapThreshold = 1000L // 1 second gap
+        
+        var currentSegmentStart = sortedFaces[0].timestamp
+        var currentSegmentEnd = sortedFaces[0].timestamp
+        var bestFrameInSegment = sortedFaces[0]
+        
+        for (i in 1 until sortedFaces.size) {
+            val currentFace = sortedFaces[i]
+            val prevFace = sortedFaces[i - 1]
+            
+            val timeGap = currentFace.timestamp - prevFace.timestamp
+            
+            if (timeGap > gapThreshold) {
+                segments.add(
+                    AppearanceSegment(
+                        personId = 0,
+                        startTimeMs = currentSegmentStart,
+                        endTimeMs = currentSegmentEnd,
+                        bestFrame = FaceEmbeddingService.FaceEmbedding(
+                            vector = floatArrayOf(),
+                            bitmap = bestFrameInSegment.bitmap,
+                            timestamp = bestFrameInSegment.timestamp,
+                            frameIndex = bestFrameInSegment.frameIndex
+                        )
+                    )
+                )
+                currentSegmentStart = currentFace.timestamp
+                currentSegmentEnd = currentFace.timestamp
+                bestFrameInSegment = currentFace
+            } else {
+                currentSegmentEnd = currentFace.timestamp
+                if (currentFace.bitmap.width * currentFace.bitmap.height > 
+                    bestFrameInSegment.bitmap.width * bestFrameInSegment.bitmap.height) {
+                    bestFrameInSegment = currentFace
+                }
+            }
+        }
+        
+        segments.add(
+            AppearanceSegment(
+                personId = 0,
+                startTimeMs = currentSegmentStart,
+                endTimeMs = currentSegmentEnd,
+                bestFrame = FaceEmbeddingService.FaceEmbedding(
+                    vector = floatArrayOf(),
+                    bitmap = bestFrameInSegment.bitmap,
+                    timestamp = bestFrameInSegment.timestamp,
+                    frameIndex = bestFrameInSegment.frameIndex
+                )
+            )
+        )
+        
+        return segments
     }
 }

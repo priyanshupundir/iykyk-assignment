@@ -45,6 +45,10 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        // Fix 16 KB alignment for newer Android devices
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
     androidResources {
         noCompress.add("tflite")

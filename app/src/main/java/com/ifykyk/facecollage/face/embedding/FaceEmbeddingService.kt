@@ -3,6 +3,7 @@ package com.ifykyk.facecollage.face.embedding
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.util.Log
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.support.common.FileUtil
@@ -91,11 +92,16 @@ class FaceEmbeddingService(private val context: Context) {
             // Prepare input buffer
             val inputBuffer = ByteBuffer.allocateDirect(4 * 112 * 112 * 3).order(ByteOrder.nativeOrder())
             processedImage.buffer.rewind()
+            if (processedImage.buffer.remaining() != inputBuffer.remaining()) {
+                Log.w("FaceEmbedding", "Buffer size mismatch: expected ${inputBuffer.remaining()}, got ${processedImage.buffer.remaining()}")
+            }
             inputBuffer.put(processedImage.buffer)
             inputBuffer.rewind()
             
-            // Prepare output buffer
-            val outputBuffer = Array(1) { FloatArray(192) } // MobileFaceNet outputs 192-dimensional embeddings
+            // Prepare output buffer based on model's actual output shape
+            val outputShape = interpreter.getOutputTensor(0).shape()
+            val outputSize = if (outputShape.size > 1) outputShape[1] else 192
+            val outputBuffer = Array(1) { FloatArray(outputSize) }
             
             // Run inference
             interpreter.run(inputBuffer, outputBuffer)
@@ -113,6 +119,7 @@ class FaceEmbeddingService(private val context: Context) {
                 frameIndex = frameIndex
             )
         } catch (e: Exception) {
+            Log.e("FaceEmbedding", "Failed to generate embedding", e)
             return null
         }
     }

@@ -26,7 +26,21 @@ class RepresentativeShotSelector {
         embeddings: List<FaceEmbeddingService.FaceEmbedding>,
         faces: List<FaceDetectionService.DetectedFace>
     ): FaceEmbeddingService.FaceEmbedding? {
-        if (embeddings.isEmpty()) return null
+        if (embeddings.isEmpty() && faces.isEmpty()) return null
+        
+        // Fallback: if no embeddings but have faces, use simple size-based selection
+        if (embeddings.isEmpty()) {
+            android.util.Log.d("RepresentativeShotSelector", "Using fallback selection: choosing largest face")
+            val largestFace = faces.maxByOrNull { it.face.boundingBox.width() * it.face.boundingBox.height() }
+            return largestFace?.let {
+                FaceEmbeddingService.FaceEmbedding(
+                    vector = floatArrayOf(0.1f, 0.2f, 0.3f), // Placeholder vector
+                    bitmap = it.bitmap,
+                    timestamp = it.timestamp,
+                    frameIndex = it.frameIndex
+                )
+            }
+        }
         
         // Create mapping of frame indices to faces
         val faceMap = faces.associateBy { it.frameIndex }

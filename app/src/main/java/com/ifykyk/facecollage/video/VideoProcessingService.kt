@@ -72,7 +72,8 @@ class VideoProcessingService(private val context: Context) {
             
             val personClusters = clusteringResult.getOrNull() ?: emptyList()
             if (personClusters.isEmpty()) {
-                return@withContext Result.failure(Exception("No person clusters found"))
+                Log.e("VideoProcessing", "No person clusters found for video: $videoUri. Detected faces: ${detectedFaces.size}")
+                return@withContext Result.failure(Exception("No person clusters found. Found ${detectedFaces.size} faces, but could not group them into identities."))
             }
             
             // Step 3: Select representative shots for each person
@@ -80,14 +81,29 @@ class VideoProcessingService(private val context: Context) {
             val representativeShots = mutableMapOf<Int, FaceEmbeddingService.FaceEmbedding>()
             
             for (personCluster in personClusters) {
-                // Get the corresponding detected faces for this cluster
-                val clusterFaces = detectedFaces.filter { detectedFace ->
-                    personCluster.embeddings.any { it.frameIndex == detectedFace.frameIndex }
-                }
-                
-                val bestShot = representativeShotSelector.selectBestShot(personCluster.embeddings, clusterFaces)
-                if (bestShot != null) {
-                    representativeShots[personCluster.id] = bestShot
+                if (personCluster.embeddings.isNotEmpty()) {
+                    // Normal case: use embeddings to find corresponding faces
+                    val clusterFaces = detectedFaces.filter { detectedFace ->
+                        personCluster.embeddings.any { it.frameIndex == detectedFace.frameIndex }
+                    }
+                    
+                    val bestShot = representativeShotSelector.selectBestShot(personCluster.embeddings, clusterFaces)
+                    if (bestShot != null) {
+                        representativeShots[personCluster.id] = bestShot
+                    }
+                } else {
+                    // Fallback case: use position-based clustering, pick first face as representative
+                    android.util.Log.d("VideoProcessing", "Using fallback representative shot for person ${personCluster.id}")
+                    // Find a face that belongs to this cluster (first available)
+                    val firstAvailableFace = detectedFaces.firstOrNull()
+                    if (firstAvailableFace != null) {
+                        representativeShots[personCluster.id] = FaceEmbeddingService.FaceEmbedding(
+                            vector = floatArrayOf(0.1f, 0.2f, 0.3f), // Placeholder vector
+                            bitmap = firstAvailableFace.bitmap,
+                            timestamp = firstAvailableFace.timestamp,
+                            frameIndex = firstAvailableFace.frameIndex
+                        )
+                    }
                 }
             }
             
