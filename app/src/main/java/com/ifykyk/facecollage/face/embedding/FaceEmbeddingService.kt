@@ -57,8 +57,11 @@ class FaceEmbeddingService(private val context: Context) {
                 setNumThreads(4)
             }
             interpreter = Interpreter(modelFile, options)
+            android.util.Log.d("FaceEmbedding", "TFLite model loaded successfully")
         } catch (e: Exception) {
-            throw RuntimeException("Failed to load face embedding model", e)
+            android.util.Log.e("FaceEmbedding", "Failed to load TFLite model: ${e.message}", e)
+            // Don't throw exception - allow fallback to work
+            android.util.Log.w("FaceEmbedding", "Will use fallback clustering instead")
         }
     }
     
@@ -68,6 +71,7 @@ class FaceEmbeddingService(private val context: Context) {
         timestamp: Long,
         frameIndex: Int
     ): FaceEmbedding? {
+        android.util.Log.d("FaceEmbedding", "generateEmbedding called for frame $frameIndex, interpreter available: ${interpreter != null}")
         val interpreter = interpreter ?: return null
         
         try {
@@ -112,6 +116,8 @@ class FaceEmbeddingService(private val context: Context) {
             
             faceBitmap.recycle()
             
+            android.util.Log.d("FaceEmbedding", "Successfully generated embedding for frame $frameIndex, vector size: ${embedding.size}")
+            
             return FaceEmbedding(
                 vector = embedding,
                 bitmap = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false),
@@ -119,7 +125,7 @@ class FaceEmbeddingService(private val context: Context) {
                 frameIndex = frameIndex
             )
         } catch (e: Exception) {
-            Log.e("FaceEmbedding", "Failed to generate embedding", e)
+            android.util.Log.e("FaceEmbedding", "Failed to generate embedding for frame $frameIndex: ${e.message}", e)
             return null
         }
     }

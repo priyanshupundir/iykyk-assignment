@@ -2,7 +2,7 @@ package com.ifykyk.facecollage.face.detection
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.Log
@@ -14,16 +14,15 @@ import com.google.mlkit.vision.face.FaceDetectorOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import java.io.File
 
 class FaceDetectionService(private val context: Context) {
     
     private val faceDetector: FaceDetector by lazy {
         val options = FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
-            .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
-            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
-            .setMinFaceSize(0.1f) // Standard minimum face size for better accuracy
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+            .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+            .setMinFaceSize(0.1f)
             .enableTracking()
             .build()
         
@@ -40,12 +39,71 @@ class FaceDetectionService(private val context: Context) {
     private suspend fun detectFacesSuspend(image: InputImage): List<Face> = suspendCancellableCoroutine { continuation ->
         faceDetector.process(image)
             .addOnSuccessListener { faces ->
-                continuation.resume(faces) {}
+                continuation.resumeWith(Result.success(faces))
             }
             .addOnFailureListener { e ->
                 Log.e("FaceDetection", "ML Kit face detection failed", e)
-                continuation.resume(emptyList()) {}
+                continuation.resumeWith(Result.success(emptyList()))
             }
+    }
+    
+    /**
+     * Extracts evenly spaced video frames across the video duration.
+     * Perfect for direct collage generation without ML face detection.
+     */
+    suspend fun extractVideoKeyframes(
+        videoUri: Uri,
+        targetFrameCount: Int = 6,
+        onProgress: (Float, String) -> Unit
+    ): Result<List<Bitmap>> = withContext(Dispatchers.IO) {
+        try {
+            val retriever = MediaMetadataRetriever()
+            retriever.setDataSource(context, videoUri)
+            
+            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLong() ?: 0L
+            val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+            
+            val frames = mutableListOf<Bitmap>()
+            val count = targetFrameCount.coerceIn(2, 12)
+            
+            // Calculate timestamps distributed evenly across the video duration (e.g. 10% to 90%)
+            val startUs = (durationMs * 1000 * 0.05).toLong()
+            val endUs = (durationMs * 1000 * 0.95).toLong()
+            val stepUs = if (count > 1) (endUs - startUs) / (count - 1) else 1000L
+            
+            for (i in 0 until count) {
+                val timeUs = if (durationMs > 0) (startUs + i * stepUs) else (i * 500_000L)
+                onProgress(0.1f + (i.toFloat() / count) * 0.7f, "Extracting video highlight ${i + 1}/$count...")
+                
+                val rawBitmap = try {
+                    retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST)
+                } catch (e: Exception) {
+                    null
+                }
+                
+                if (rawBitmap != null) {
+                    val correctedBitmap = if (rotation != 0) {
+                        val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
+                        val rotated = Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true)
+                        rawBitmap.recycle()
+                        rotated
+                    } else {
+                        rawBitmap
+                    }
+                    frames.add(correctedBitmap)
+                }
+            }
+            
+            retriever.release()
+            
+            if (frames.isEmpty()) {
+                Result.failure(Exception("Could not extract any frames from the video."))
+            } else {
+                Result.success(frames)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     suspend fun detectFacesInVideo(
@@ -62,21 +120,18 @@ class FaceDetectionService(private val context: Context) {
             val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
             Log.d("FaceDetection", "Video duration: ${duration}ms, rotation: $rotation")
             
-            val frameRate = 10 // Slightly lower frame rate for better stability
-            val totalFrames = if (duration > 0) (duration * frameRate / 1000).toInt() else 1
-            val intervalUs = if (totalFrames > 0) 1_000_000L / frameRate else 100_000L
-            Log.d("FaceDetection", "Total estimated frames: $totalFrames, interval: ${intervalUs}us")
+            // Sample at ~2 frames per second (every 500ms) for high speed & responsiveness
+            val intervalUs = 500_000L // 500ms
+            val totalEstimatedFrames = if (duration > 0) ((duration * 1000) / intervalUs).toInt().coerceAtLeast(1) else 10
             
-            onProgress(0.1f, "Extracting video frames...")
+            onProgress(0.05f, "Analyzing video frames for faces...")
             
             var frameCount = 0
             var timeUs = 0L
             var framesWithFaces = 0
-            var framesProcessed = 0
+            val maxTimeUs = if (duration > 0) duration * 1000 else 30_000_000L // Cap at video end or 30s
             
-            // Loop until end of video, but at least once if duration is 0
-            while (timeUs < (duration * 1000).coerceAtLeast(1000L)) {
-                // Extract frame at current timestamp. Use OPTION_CLOSEST for better accuracy than OPTION_CLOSEST_SYNC
+            while (timeUs < maxTimeUs) {
                 val bitmap = try {
                     retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST)
                 } catch (e: Exception) {
@@ -85,53 +140,66 @@ class FaceDetectionService(private val context: Context) {
                 }
                 
                 if (bitmap != null) {
-                    // Log frame extraction for debugging
-                    if (frameCount % 20 == 0) {
-                        Log.d("FaceDetection", "Extracted frame $frameCount: ${bitmap.width}x${bitmap.height} at ${timeUs/1000}ms")
+                    // Rotate bitmap if necessary so face detection coordinates align with visual orientation
+                    val processedBitmap = if (rotation != 0) {
+                        val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
+                        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                        bitmap.recycle()
+                        rotated
+                    } else {
+                        bitmap
                     }
                     
-                    // Detect faces in this frame with correct rotation
-                    val image = InputImage.fromBitmap(bitmap, rotation)
+                    val image = InputImage.fromBitmap(processedBitmap, 0)
                     val faces = detectFacesSuspend(image)
                     
                     if (faces.isNotEmpty()) {
                         framesWithFaces++
                         for (face in faces) {
-                            // Accept detected face
-                            detectedFaces.add(
-                                DetectedFace(
-                                    bitmap = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false),
-                                    face = face,
-                                    timestamp = timeUs / 1000,
-                                    frameIndex = frameCount
+                            if (face.boundingBox.width() > 20 && face.boundingBox.height() > 20) {
+                                // Crop face region with 20% margin for beautiful collage display
+                                val marginX = (face.boundingBox.width() * 0.2f).toInt()
+                                val marginY = (face.boundingBox.height() * 0.2f).toInt()
+                                val cropLeft = (face.boundingBox.left - marginX).coerceIn(0, processedBitmap.width - 1)
+                                val cropTop = (face.boundingBox.top - marginY).coerceIn(0, processedBitmap.height - 1)
+                                val cropWidth = (face.boundingBox.width() + 2 * marginX).coerceIn(1, processedBitmap.width - cropLeft)
+                                val cropHeight = (face.boundingBox.height() + 2 * marginY).coerceIn(1, processedBitmap.height - cropTop)
+                                
+                                val faceCrop = try {
+                                    Bitmap.createBitmap(processedBitmap, cropLeft, cropTop, cropWidth, cropHeight)
+                                } catch (e: Exception) {
+                                    processedBitmap.copy(processedBitmap.config ?: Bitmap.Config.ARGB_8888, false)
+                                }
+                                
+                                detectedFaces.add(
+                                    DetectedFace(
+                                        bitmap = faceCrop,
+                                        face = face,
+                                        timestamp = timeUs / 1000,
+                                        frameIndex = frameCount
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
-                } else {
-                    Log.w("FaceDetection", "Frame at $timeUs is null")
+                    processedBitmap.recycle()
                 }
                 
                 frameCount++
                 timeUs += intervalUs
-                framesProcessed++
                 
-                // Safety break for very long videos or metadata errors
-                if (frameCount > 1000) {
-                    Log.w("FaceDetection", "Reached max frame limit (1000)")
+                if (frameCount > 200) {
+                    Log.w("FaceDetection", "Reached max frame limit (200)")
                     break
                 }
                 
-                // Update progress
-                val progress = 0.05f + (framesProcessed.toFloat() / totalFrames.coerceAtLeast(1)) * 0.8f
-                onProgress(progress.coerceAtMost(0.85f), "Detecting faces in frame $framesProcessed ($framesWithFaces frames found)")
-                
-                bitmap?.recycle()
+                val progress = 0.05f + (frameCount.toFloat() / totalEstimatedFrames) * 0.65f
+                onProgress(progress.coerceAtMost(0.70f), "Detecting faces in frame $frameCount (found $framesWithFaces face frames)")
             }
             
             retriever.release()
             
-            Log.d("FaceDetection", "Detection complete. Processed $frameCount frames, found faces in $framesWithFaces frames, total: ${detectedFaces.size}")
+            Log.d("FaceDetection", "Detection finished. Processed $frameCount frames, found faces in $framesWithFaces frames, total detections: ${detectedFaces.size}")
             
             Result.success(detectedFaces)
         } catch (e: Exception) {

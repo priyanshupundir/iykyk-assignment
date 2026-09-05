@@ -4,7 +4,6 @@ import android.util.Log
 import com.ifykyk.facecollage.face.detection.FaceDetectionService
 import com.ifykyk.facecollage.face.embedding.FaceEmbeddingService
 import kotlin.math.sqrt
-import kotlin.math.pow
 
 class FaceClusteringService(
     private val embeddingService: FaceEmbeddingService
@@ -247,8 +246,8 @@ class FaceClusteringService(
                 val repCenterY = representative.face.boundingBox.centerY().toFloat()
                 
                 val distance = sqrt(
-                    (centerX - repCenterX).pow(2) + 
-                    (centerY - repCenterY).pow(2)
+                    ((centerX - repCenterX) * (centerX - repCenterX)) + 
+                    ((centerY - repCenterY) * (centerY - repCenterY))
                 )
                 
                 if (distance < positionThreshold) {
